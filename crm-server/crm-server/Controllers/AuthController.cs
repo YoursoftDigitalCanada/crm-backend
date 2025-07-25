@@ -33,14 +33,25 @@ namespace crm_server.Controllers
 
         //Routing for login only check hashdpswd and username to return success or errmsg
         [HttpPost("login")]
-        public async Task<ActionResult<string>> Login(UserDto request)
+        public async Task<ActionResult<TokenResponseDto>> Login(UserDto request)
         {
-            var token = await authService.LoginAsync(request);
-            if(token == null)
+            var result = await authService.LoginAsync(request);
+            if(result == null)
             {
                 return BadRequest("Incorrect Username or Password");
             }
-            return Ok(token);
+            return Ok(result);
+        }
+
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<TokenResponseDto>> RefreshToken(RefreshTokenRequestDto request)
+        {
+            var result = await authService.RefreshTokensAsync(request);
+            if (result == null || result.AccessToken is null || result.RefreshToken is null)
+            {
+                return Unauthorized("Invalid Refresh Token");
+            }
+            return Ok(result);
         }
 
         // add header when sending req - Authorization(key) : (value) Bearer jwt 
