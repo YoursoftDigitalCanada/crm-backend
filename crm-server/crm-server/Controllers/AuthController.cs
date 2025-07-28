@@ -54,6 +54,18 @@ namespace crm_server.Controllers
             return Ok(result);
         }
 
+        [HttpDelete("delete")]
+        public async Task<IActionResult> DeleteUser(SoftDeleteDto request)
+        {
+            var result = await authService.SoftDeleteAsync(request);
+
+            if (!result)
+                return NotFound("User not found or already deleted.");
+
+            return Ok("User marked as deleted.");
+        }
+
+
         // add header when sending req - Authorization(key) : (value) Bearer jwt 
         [Authorize]
         [HttpGet]
@@ -62,12 +74,39 @@ namespace crm_server.Controllers
             return Ok("You are authenticated thus only you can read this");
         }
 
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] RefreshTokenDto request)
+        {
+            bool result = await authService.LogoutUserAsync(request.RefreshToken);
+            
+
+            if (!result)
+            {
+                return Unauthorized("Invalid refresh token");
+            }
+
+            return Ok(new { message = "Successfully logged out" });
+        }
+
+
         // for admins only route
         [Authorize(Roles ="Admin" )]
         [HttpGet("admin-only")]
         public IActionResult AdminOnlyEndpoint()
         {
             return Ok("You are an admin thus only you can read this");
+        }
+
+        [Authorize(Roles ="Admin")]
+        [HttpPost("restore-user")]
+        public async Task<IActionResult> RestoreUserEndpointAsync([FromBody] RestoreUserDto request)
+        {
+            bool result = await authService.RestoreUserAsync(request.Id);
+            if (!result)
+                return NotFound("User not found or not deleted.");
+
+            return Ok("User restored.");
         }
     }
 }
