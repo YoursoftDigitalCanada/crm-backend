@@ -8,5 +8,9 @@ namespace crm_server.Services
         Task<User?> RegisterAsync(UserDto request);
         Task<TokenResponseDto?> LoginAsync(UserDto request);
         Task<TokenResponseDto?> RefreshTokensAsync(RefreshTokenRequestDto request);
+        Task<bool> SoftDeleteAsync(SoftDeleteDto request);
+        Task<bool> RestoreUserAsync(Guid id);
+        Task<bool> LogoutUserAsync(string RefreshToken);
+
     }
 }

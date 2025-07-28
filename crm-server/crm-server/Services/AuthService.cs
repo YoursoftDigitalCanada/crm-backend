@@ -1,4 +1,5 @@
-﻿using crm_server.Data;
+﻿using Azure.Core;
+using crm_server.Data;
 using crm_server.Entity;
 using crm_server.Model;
 using Microsoft.AspNetCore.Identity;
@@ -50,19 +51,7 @@ namespace crm_server.Services
                 return null;
             }
 
-            //if user and pswd match return jwt
-
-            
             return await CreateTokenResponse(user);
-        }
-
-        private async Task<TokenResponseDto> CreateTokenResponse(User user)
-        {
-            return new TokenResponseDto
-            {
-                AccessToken = CreateToken(user),
-                RefreshToken = await GenerateAndSaveRefreshTokenAsync(user)
-            };
         }
 
         public async Task<TokenResponseDto?> RefreshTokensAsync(RefreshTokenRequestDto request)
@@ -73,6 +62,87 @@ namespace crm_server.Services
                 return null;
             }
             return await CreateTokenResponse(user);
+        }
+
+        public async Task<bool> SoftDeleteAsync(SoftDeleteDto request)
+        {
+            var user = await context.Users.FindAsync(request.UserId);
+            if (user == null || user.IsDeleted)
+                return false;
+
+            string? performedBy = GetRoleFromToken(request.AccessToken);
+
+            if(performedBy is null )
+            {
+                return false;
+            }
+
+            user.IsDeleted = true;
+            user.DeletedAt = DateTime.UtcNow;
+            user.DeletedBy = performedBy;
+
+            await context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> RestoreUserAsync(Guid id)
+        {
+            var user = await context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (user == null || !user.IsDeleted)
+                return false;
+
+            user.IsDeleted = false;
+            user.DeletedAt = null;
+            user.DeletedBy = null;
+
+            await context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> LogoutUserAsync(string RefreshToken)
+        {
+            //find user in db
+            var user = await context.Users
+                .FirstOrDefaultAsync(u => u.RefreshTokens == RefreshToken);
+
+            if (user == null)
+            {
+                return false;
+            }
+
+            // Invalidate the refresh token
+            user.RefreshTokens = null;
+            user.RefreshTokenExpiryTime = null;
+
+            await context.SaveChangesAsync();
+            return true;
+        }
+
+
+        private string? GetRoleFromToken(string jwtToken)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+
+            // Validate token format
+            if (!tokenHandler.CanReadToken(jwtToken))
+                return null;
+
+            var token = tokenHandler.ReadJwtToken(jwtToken);
+
+            return token.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
+        }
+
+
+        private async Task<TokenResponseDto> CreateTokenResponse(User user)
+        {
+            return new TokenResponseDto
+            {
+                AccessToken = CreateToken(user),
+                RefreshToken = await GenerateAndSaveRefreshTokenAsync(user)
+            };
         }
 
         private async Task<User?> ValidateRefreshTokenAsync(Guid UserId, string RefreshToken)
